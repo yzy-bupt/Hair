@@ -77,21 +77,21 @@ data:
       batch_size: 4
       wrap: False
       train:
-          target: ldm.data.open-images.OpenImageDataset
+          target: ldm.data.celeba-hq.CelebaDataset
           params:
               state: train
               dataset_dir: dataset/open-images
               arbitrary_mask_percent: 0.5
               image_size: 512
       validation:
-          target: ldm.data.open-images.OpenImageDataset
+          target: ldm.data.celeba-hq.CelebaDataset
           params:
               state: validation
               dataset_dir: dataset/open-images 
               arbitrary_mask_percent: 0.5
               image_size: 512
       test:
-          target: ldm.data.open-images.OpenImageDataset
+          target: ldm.data.celeba-hq.CelebaDataset
           params:
               state: test
               dataset_dir: dataset/open-images
@@ -100,7 +100,7 @@ data:
 
 lightning:
   trainer:
-    max_epochs: 40
+    max_epochs: 100
     num_nodes: 1
     accelerator: 'gpu'
-    gpus: "0,1,2,3,4,5,6,7"
+    gpus: "0,1,2"

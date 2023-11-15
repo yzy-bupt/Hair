@@ -1,4 +1,5 @@
 import argparse, os, sys, glob
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 import cv2
 import torch
 import numpy as np
@@ -25,9 +26,9 @@ from torchvision.transforms import Resize
 wm = "Paint-by-Example"
 wm_encoder = WatermarkEncoder()
 wm_encoder.set_watermark('bytes', wm.encode('utf-8'))
-safety_model_id = "CompVis/stable-diffusion-safety-checker"
-safety_feature_extractor = AutoFeatureExtractor.from_pretrained(safety_model_id)
-safety_checker = StableDiffusionSafetyChecker.from_pretrained(safety_model_id)
+# safety_model_id = "CompVis/stable-diffusion-safety-checker"
+# safety_feature_extractor = AutoFeatureExtractor.from_pretrained(safety_model_id)
+# safety_checker = StableDiffusionSafetyChecker.from_pretrained(safety_model_id)
 
 def chunk(it, size):
     it = iter(it)
@@ -94,14 +95,14 @@ def load_replacement(x):
         return x
 
 
-def check_safety(x_image):
-    safety_checker_input = safety_feature_extractor(numpy_to_pil(x_image), return_tensors="pt")
-    x_checked_image, has_nsfw_concept = safety_checker(images=x_image, clip_input=safety_checker_input.pixel_values)
-    assert x_checked_image.shape[0] == len(has_nsfw_concept)
-    for i in range(len(has_nsfw_concept)):
-        if has_nsfw_concept[i]:
-            x_checked_image[i] = load_replacement(x_checked_image[i])
-    return x_checked_image, has_nsfw_concept
+# def check_safety(x_image):
+#     safety_checker_input = safety_feature_extractor(numpy_to_pil(x_image), return_tensors="pt")
+#     x_checked_image, has_nsfw_concept = safety_checker(images=x_image, clip_input=safety_checker_input.pixel_values)
+#     assert x_checked_image.shape[0] == len(has_nsfw_concept)
+#     for i in range(len(has_nsfw_concept)):
+#         if has_nsfw_concept[i]:
+#             x_checked_image[i] = load_replacement(x_checked_image[i])
+#     return x_checked_image, has_nsfw_concept
 
 def get_tensor(normalize=True, toTensor=True):
     transform_list = []
@@ -132,7 +133,7 @@ def main():
         type=str,
         nargs="?",
         help="dir to write results to",
-        default="outputs/txt2img-samples"
+        default="results"
     )
     parser.add_argument(
         "--skip_grid",
@@ -147,7 +148,7 @@ def main():
     parser.add_argument(
         "--ddim_steps",
         type=int,
-        default=50,
+        default=200,
         help="number of ddim sampling steps",
     )
     parser.add_argument(
@@ -223,19 +224,19 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="",
+        default="configs/v1.yaml",
         help="path to config which constructs model",
     )
     parser.add_argument(
         "--ckpt",
         type=str,
-        default="",
+        default="/sda/home/qianshengsheng/yzy/Paint-by-Example2/logs/2023-10-26T05-08-55_v1/checkpoints/last.ckpt",
         help="path to checkpoint of model",
     )
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
+        default=321,#42
         help="the seed (for reproducible sampling)",
     )
     parser.add_argument(
@@ -249,19 +250,19 @@ def main():
         "--image_path",
         type=str,
         help="evaluate at this precision",
-        default=""
+        default="../dataset/CelebAMask-HQ/CelebA-HQ-img/1.jpg"
     )
     parser.add_argument(
         "--mask_path",
         type=str,
         help="evaluate at this precision",
-        default=""
+        default="../dataset/CelebAMask-HQ/CelebAMask-HQ-mask-anno/0/00001_hair.png"
     )
     parser.add_argument(
         "--reference_path",
         type=str,
         help="evaluate at this precision",
-        default=""
+        default="../dataset/CelebAMask-HQ/CelebA-HQ-img/1.jpg"
     )
     opt = parser.parse_args()
 
@@ -309,12 +310,24 @@ def main():
                 ref_p = Image.open(opt.reference_path).convert("RGB").resize((224,224))
                 ref_tensor=get_tensor_clip()(ref_p)
                 ref_tensor = ref_tensor.unsqueeze(0)
-                mask=Image.open(opt.mask_path).convert("L")
-                mask = np.array(mask)[None,None]
+                mask=Image.open(opt.mask_path).convert("L").resize((opt.H,opt.W))
+
+                mask = cv2.cvtColor(np.array(mask), cv2.COLOR_GRAY2BGR)
+
+                # 定义开闭操作的内核大小
+                kernel_size = (9, 9)
+
+                # 开操作
+                dilated_mask = cv2.dilate(mask, kernel_size, iterations=10)
+                # 将结果转换回PIL图像
+                mask = Image.fromarray(dilated_mask)
+
+                mask = np.array(mask)[:,:,0][None,None]
                 mask = 1 - mask.astype(np.float32)/255.0
                 mask[mask < 0.5] = 0
                 mask[mask >= 0.5] = 1
                 mask_tensor = torch.from_numpy(mask)
+                image_tensor = Resize([mask_tensor.shape[-2],mask_tensor.shape[-1]])(image_tensor)
                 inpaint_image = image_tensor*mask_tensor
                 test_model_kwargs={}
                 test_model_kwargs['inpaint_mask']=mask_tensor.to(device)
@@ -347,7 +360,7 @@ def main():
                 x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
                 x_samples_ddim = x_samples_ddim.cpu().permute(0, 2, 3, 1).numpy()
 
-                x_checked_image, has_nsfw_concept = check_safety(x_samples_ddim)
+                # x_checked_image, has_nsfw_concept = check_safety(x_samples_ddim)
                 x_checked_image=x_samples_ddim
                 x_checked_image_torch = torch.from_numpy(x_checked_image).permute(0, 3, 1, 2)
 

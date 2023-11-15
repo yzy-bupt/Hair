@@ -27,3 +27,10 @@ python scripts/inference.py \
 --reference_path examples/reference/example_3.jpg \
 --seed 5065 \
 --scale 5
+
+
+python inference.py --plms --outdir results --config configs/v1.yaml --ckpt ../models/model.ckpt --image_pa
+th examples/image/example_1.png --mask_path examples/mask/example_1.png --reference_path examples/reference/example_1.jpg --seed 321 --scale 5
+
+python inference.py --plms --outdir results --config configs/v1.yaml --ckpt ../models/model.ckpt --image_pa
+th examples/image/00.jpg --mask_path examples/mask/00.jpg --reference_path examples/reference/14.jpg --seed 321 --scale 5 --H 1024 --W 768

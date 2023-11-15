@@ -59,7 +59,7 @@ def get_parser(**parser_kwargs):
         metavar="base_config.yaml",
         help="paths to base configs. Loaded from left-to-right. "
              "Parameters can be overwritten or added with command-line options of the form `--key value`.",
-        default=["configs/stable-diffusion/v1-inference-inpaint.yaml"],
+        default=["configs/v1.yaml"],
     )
     parser.add_argument(
         "-t",
@@ -116,7 +116,7 @@ def get_parser(**parser_kwargs):
     parser.add_argument(
         "--pretrained_model",
         type=str,
-        default="",
+        default="../models/model.ckpt",
         help="path to pretrained model",
     )
     parser.add_argument(
@@ -124,7 +124,7 @@ def get_parser(**parser_kwargs):
         type=str2bool,
         nargs="?",
         const=True,
-        default=True,
+        default=False,
         help="scale base-lr by ngpu * batch_size * n_accumulate",
     )
     parser.add_argument(
@@ -415,7 +415,7 @@ class CUDACallback(Callback):
         torch.cuda.synchronize(trainer.root_gpu)
         self.start_time = time.time()
 
-    def on_train_epoch_end(self, trainer, pl_module, outputs):
+    def on_train_epoch_end(self, trainer, pl_module):
         torch.cuda.synchronize(trainer.root_gpu)
         max_memory = torch.cuda.max_memory_allocated(trainer.root_gpu) / 2 ** 20
         epoch_time = time.time() - self.start_time
