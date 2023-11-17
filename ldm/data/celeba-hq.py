@@ -69,14 +69,15 @@ class CelebaDataset(data.Dataset):
         self.random_trans=A.Compose([
             A.Resize(height=224,width=224),
             A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=20),
-            A.Blur(p=0.3),
-            A.ElasticTransform(p=0.3)
+            A.Rotate(limit=5),
+            A.Blur(p=0.05),
+            A.ElasticTransform(p=0.05)
             ])
         self.img_path_list=[]
         self.mask_path_list=[]
         
-        self.length = 100
+        self.length = 1000
+        flag = True
         for idx in range(15):
             bbox_dir='../dataset/CelebAMask-HQ/CelebAMask-HQ-mask-anno/{}/'.format(idx)
             per_dir_file_list=os.listdir(bbox_dir)
@@ -86,9 +87,14 @@ class CelebaDataset(data.Dataset):
                     self.mask_path_list.append(os.path.join(bbox_dir,file_name))
                     self.img_path_list.append(os.path.join('../dataset/CelebAMask-HQ/CelebA-HQ-img/', str(int(splitstr[0]))+'.jpg'))
 
-                    if state != "train":
-                        if len(self.img_path_list) >= 100:
+                    if len(self.img_path_list) == 1000 and flag:
+                        flag = False
+                        if state != "train":
                             return
+                        else:
+                            self.img_path_list=[]
+                            self.mask_path_list=[]
+
 
         self.length=len(self.img_path_list)
 
@@ -109,23 +115,36 @@ class CelebaDataset(data.Dataset):
         W,H = img_p.size
         img_p_np=cv2.imread(img_path_p)
         img_p_np = cv2.cvtColor(img_p_np, cv2.COLOR_BGR2RGB)
-        min_x = W
-        min_y = H
-        max_x = max_y = 0
-        for x in range(W // 2):
-            for y in range(H // 2):
-                # 获取像素值
-                pixel = img_m.getpixel((x, y))
-                # 如果像素值为1，则更新矩形的最大和最小坐标
-                if pixel == (0, 0, 0):
-                    min_x = min(min_x, x)
-                    min_y = min(min_y, y)
-                    max_x = max(max_x, x)
-                    max_y = max(max_y, y)
-        ref_image_tensor=img_p_np[2*min_x:2*max_x+1,2*min_y:2*max_y+1,:]
+        img_m_np=cv2.imread(img_path_m)
+        img_m_np = cv2.cvtColor(img_m_np, cv2.COLOR_BGR2RGB)
+        img_m_np = cv2.resize(img_m_np, (W,H))
+        mask = np.where(img_m_np > 0, 1, 0)
+        ref_image_tensor = mask * img_p_np
+        ref_image_tensor = ref_image_tensor.astype(np.uint8)
         ref_image_tensor=self.random_trans(image=ref_image_tensor)
         ref_image_tensor=Image.fromarray(ref_image_tensor["image"])
         ref_image_tensor=get_tensor_clip()(ref_image_tensor)
+
+        # W,H = img_p.size
+        # img_p_np=cv2.imread(img_path_p)
+        # img_p_np = cv2.cvtColor(img_p_np, cv2.COLOR_BGR2RGB)
+        # min_x = W
+        # min_y = H
+        # max_x = max_y = 0
+        # for x in range(W // 2):
+        #     for y in range(H // 2):
+        #         # 获取像素值
+        #         pixel = img_m.getpixel((x, y))
+        #         # 如果像素值为1，则更新矩形的最大和最小坐标
+        #         if pixel == (0, 0, 0):
+        #             min_x = min(min_x, x)
+        #             min_y = min(min_y, y)
+        #             max_x = max(max_x, x)
+        #             max_y = max(max_y, y)
+        # ref_image_tensor=img_p_np[2*min_x:2*max_x+1,2*min_y:2*max_y+1,:]
+        # ref_image_tensor=self.random_trans(image=ref_image_tensor)
+        # ref_image_tensor=Image.fromarray(ref_image_tensor["image"])
+        # ref_image_tensor=get_tensor_clip()(ref_image_tensor)
 
 
 

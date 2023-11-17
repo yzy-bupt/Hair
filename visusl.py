@@ -232,7 +232,7 @@ parser.add_argument(
 parser.add_argument(
     "--ckpt",
     type=str,
-    default="model/model.ckpt",
+    default="logs/2023-11-16T15-39-19_v1/checkpoints/last.ckpt",
     help="path to checkpoint of model",
 )
 parser.add_argument(
@@ -290,7 +290,34 @@ else:
     sampler = DDIMSampler(model)
 
 
-def process(image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta):
+def process(img_id, img_input, is_input, image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta, model_path, load_model, is_multi, num_gen):
+    if load_model:
+        model = load_model_from_config(config, model_path)
+        model = model.to(device)
+
+        if opt.plms:
+            sampler = PLMSSampler(model)
+        else:
+            sampler = DDIMSampler(model)
+
+    img_id = int(img_id)
+    if img_id != -1:
+        image_path = '../dataset/CelebAMask-HQ/CelebA-HQ-img/'+str(img_id)+'.jpg'
+        mask_path = '../dataset/CelebAMask-HQ/CelebAMask-HQ-mask-anno/{}/'.format(img_id // 2000)+str(img_id).zfill(5)+'_hair.png'
+
+    result = []
+    if is_multi:
+        flag = True
+        for i in range(int(num_gen)):
+            reference_path = '../dataset/CelebAMask-HQ/CelebA-HQ-img/'+str(i)+'.jpg'
+            ref_mask_path = '../dataset/CelebAMask-HQ/CelebAMask-HQ-mask-anno/{}/'.format(i // 2000)+str(i).zfill(5)+'_hair.png'
+            result += gen(img_input, is_input, image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta, flag)
+            flag = False
+    else:
+        result += gen(img_input, is_input, image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta, True)
+    return result
+
+def gen(img_input, is_input, image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta, first):
     if seed == -1:
         seed = random.randint(0, 65535)
     seed_everything(seed)
@@ -314,13 +341,19 @@ def process(image_path, reference_path, mask_path, ref_mask_path, ddim_steps, sc
         with precision_scope("cuda"):
             with model.ema_scope():
                 filename=os.path.basename(image_path)
-                img_p = Image.open(image_path).convert("RGB")
+                if img_input:
+                    img_p = img_input["image"].convert("RGB")
+                else:
+                    img_p = Image.open(image_path).convert("RGB")
                 image_tensor = get_tensor()(img_p)
                 image_tensor = image_tensor.unsqueeze(0)
                 ref_p = Image.open(reference_path).convert("RGB")
                 ref_tensor=get_tensor_clip()(ref_p)
                 ref_tensor = ref_tensor.unsqueeze(0)
-                mask=Image.open(mask_path).convert("L").resize((opt.H,opt.W))
+                if img_input:
+                    mask = img_input["mask"].convert("L").resize((opt.H,opt.W))
+                else:
+                    mask=Image.open(mask_path).convert("L").resize((opt.H,opt.W))
                 ref_mask=Image.open(ref_mask_path).convert("L").resize((opt.H,opt.W))
 
                 mask = cv2.cvtColor(np.array(mask), cv2.COLOR_GRAY2BGR)
@@ -440,7 +473,10 @@ def process(image_path, reference_path, mask_path, ref_mask_path, ddim_steps, sc
     print(f"Your samples are ready and waiting for you here: \n{outpath} \n"
             f" \nEnjoy.")
 
-    return all_img
+    if first:
+        return [GT_img, inpaint_img, ref_img, Image.fromarray(x_sample.astype(np.uint8))]
+    else:
+        return [ref_img, Image.fromarray(x_sample.astype(np.uint8))]
 
 
 
@@ -452,21 +488,31 @@ with block:
         with gr.Column():
             # input_image = gr.Image(source='upload', type="numpy")
             run_button = gr.Button(label="Run")
+            img_input = gr.Image(type="pil", tool="sketch", label="Input")
             with gr.Accordion("Advanced options", open=False):
-                # image_resolution = gr.Slider(label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                # guess_mode = gr.Checkbox(label='Guess Mode', value=False)
-                ddim_steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=opt.ddim_steps, step=1)
+                is_input = gr.Checkbox(label="Is Input", value=False)
+                img_id = gr.Number(label="image ID", value=0)
+
+                ddim_steps = gr.Slider(label="Steps", minimum=1, maximum=200, value=20, step=1)
                 scale = gr.Slider(label="Guidance Scale", minimum=0.1, maximum=30.0, value=opt.scale, step=0.1)
                 seed = gr.Slider(label="Seed", minimum=-1, maximum=2147483647, step=1, value=opt.seed)
                 ddim_eta = gr.Number(label="eta (DDIM)", value=opt.n_samples)
-                image_path = gr.Textbox(label="Image Path", value=opt.image_path)
-                mask_path = gr.Textbox(label="Mask Path", value=opt.mask_path)
-                reference_path = gr.Textbox(label="Reference Path", value=opt.reference_path)
-                ref_mask_path = gr.Textbox(label="Reference mask path", value=opt.ref_mask_path)
+                num_gen = gr.Number(label="Number gen if it is multi", value=4)
+                is_multi = gr.Checkbox(label="Is Multi", value=True)
+
+                load_model = gr.Checkbox(label="Load Model", value=False)
+                model_path = gr.Textbox(label="Model Path", value=opt.ckpt)
+
+                with gr.Accordion("Advanced paths (if image ID is -1)", open=False):
+                    image_path = gr.Textbox(label="Image Path", value=opt.image_path)
+                    mask_path = gr.Textbox(label="Mask Path", value=opt.mask_path)
+                    reference_path = gr.Textbox(label="Reference Path", value=opt.reference_path)
+                    ref_mask_path = gr.Textbox(label="Reference mask path", value=opt.ref_mask_path)
 
         with gr.Column():
-            result_gallery = gr.Gallery(label='Output', show_label=False, elem_id="gallery").style(grid=4, height='auto')
-    ips = [image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta]
+                result_gallery = gr.Gallery(label='Output', show_label=False, elem_id="gallery").style(columns=[2], height='auto')
+
+    ips = [img_id, img_input, is_input, image_path, reference_path, mask_path, ref_mask_path, ddim_steps, scale, seed, ddim_eta, model_path, load_model, is_multi, num_gen]
     run_button.click(fn=process, inputs=ips, outputs=[result_gallery])
 
 block.launch(server_name='0.0.0.0')
