@@ -18,7 +18,7 @@ from pytorch_lightning.utilities.distributed import rank_zero_only
 from pytorch_lightning.utilities import rank_zero_info
 
 from ldm.data.base import Txt2ImgIterableBaseDataset
-from ldm.util import instantiate_from_config
+from ldm.util import instantiate_from_config, send_email
 import socket
 from pytorch_lightning.plugins.environments import ClusterEnvironment,SLURMEnvironment
 
@@ -685,6 +685,9 @@ if __name__ == "__main__":
             print("Summoning checkpoint.")
             ckpt_path = os.path.join(ckptdir, "last.ckpt")
             trainer.save_checkpoint(ckpt_path)
+            send_email()
+            import pudb;
+            pudb.set_trace()
 
 
     def divein(*args, **kwargs):

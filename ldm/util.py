@@ -12,6 +12,9 @@ from queue import Queue
 
 from inspect import isfunction
 from PIL import Image, ImageDraw, ImageFont
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 
 def log_txt_as_img(wh, xc, size=10):
@@ -201,3 +204,19 @@ def parallel_data_prefetch(
         return out
     else:
         return gather_res
+
+
+def send_email(subject="WARN!!!", body="Hair is stopped!!!"):
+    sender_email = "1434620877@qq.com"
+    receiver_email = "1434620877@qq.com"
+    password = "kwrlkubbpblvhhbg"
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
+
+    with smtplib.SMTP_SSL("smtp.qq.com", 25) as server:
+        server.login(sender_email, password)
+        server.send_message(message)
+
