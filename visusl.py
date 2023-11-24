@@ -1,5 +1,5 @@
 import argparse, os, sys, glob
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import cv2
 import torch
 import numpy as np
@@ -232,7 +232,7 @@ parser.add_argument(
 parser.add_argument(
     "--ckpt",
     type=str,
-    default="logs/2023-11-16T15-39-19_v1/checkpoints/last.ckpt",
+    default="logs/2023-11-24T04-14-56_v1/checkpoints/last.ckpt",
     help="path to checkpoint of model",
 )
 parser.add_argument(

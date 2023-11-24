@@ -74,7 +74,7 @@ model:
 data:
   target: main.DataModuleFromConfig
   params:
-      batch_size: 4
+      batch_size: 1
       wrap: False
       train:
           target: ldm.data.celeba-hq.CelebaDataset

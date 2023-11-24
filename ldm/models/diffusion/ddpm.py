@@ -8,6 +8,7 @@ https://github.com/CompVis/taming-transformers
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pytorch_lightning as pl
 from torch.optim.lr_scheduler import LambdaLR
@@ -23,6 +24,7 @@ from ldm.modules.distributions.distributions import normal_kl, DiagonalGaussianD
 from ldm.models.autoencoder import VQModelInterface, IdentityFirstStage, AutoencoderKL
 from ldm.modules.diffusionmodules.util import make_beta_schedule, extract_into_tensor, noise_like
 from ldm.models.diffusion.ddim import DDIMSampler
+from ldm.modules.vgg import VGG19_feature_color_torchversion
 from torchvision.transforms import Resize
 import math
 import time
@@ -480,6 +482,10 @@ class LatentDiffusion(DDPM):
         self.cond_stage_forward = cond_stage_forward
         self.clip_denoised = False
         self.bbox_tokenizer = None  
+
+        self.vgg = VGG19_feature_color_torchversion(vgg_normal_correct=True)
+        self.vgg.load_state_dict(torch.load("../models/vgg19_conv.pth", map_location="cpu"))
+        self.vgg.eval()
 
         self.restarted_from_ckpt = False
         if ckpt_path is not None:
@@ -1094,7 +1100,30 @@ class LatentDiffusion(DDPM):
         loss += (self.original_elbo_weight * loss_vlb)
         loss_dict.update({f'{prefix}/loss': loss})
 
+        x_pred = self.predict_start_from_noise(x_noisy[:, :4, :, :], t=t, noise=model_output)
+
+        loss_l1_weight = 1e-1
+        loss_vgg_weight = 1e-3
+        x_samples = self.differentiable_decode_first_stage(x_pred)
+        gt = self.decode_first_stage(x_start[:,:4,:,:])
+        loss_l1 = self.get_loss(x_samples, gt, mean=True)
+        loss += loss_l1 * loss_l1_weight
+        loss_dict.update({f'{prefix}/loss_l1': loss_l1 * loss_l1_weight})
+
+        loss_vgg = self.get_vgg_loss(x_samples, gt)
+        loss += loss_vgg * loss_vgg_weight
+        loss_dict.update({f'{prefix}/loss_vgg': loss_vgg * loss_vgg_weight})
+
         return loss, loss_dict
+
+    def get_vgg_loss(self, pred, gt):
+        pred_feat = self.vgg(pred, ["r12", "r22", "r32", "r42", "r52"], preprocess=True)
+        gt_feat = self.vgg(gt, ["r12", "r22", "r32", "r42", "r52"], preprocess=True)
+        loss_feat = 0
+        weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
+        for i in range(len(pred_feat)):
+            loss_feat += weights[i] * F.l1_loss(pred_feat[i], gt_feat[i].detach())
+        return loss_feat
 
     def p_mean_variance(self, x, c, t, clip_denoised: bool, return_codebook_ids=False, quantize_denoised=False,
                         return_x0=False, score_corrector=None, corrector_kwargs=None):

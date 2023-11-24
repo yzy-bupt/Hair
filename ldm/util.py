@@ -209,14 +209,14 @@ def parallel_data_prefetch(
 def send_email(subject="WARN!!!", body="Hair is stopped!!!"):
     sender_email = "1434620877@qq.com"
     receiver_email = "1434620877@qq.com"
-    password = "kwrlkubbpblvhhbg"
+    password = "lpwfqxuxnlvghfed"
     message = MIMEMultipart()
     message["From"] = sender_email
     message["To"] = receiver_email
     message["Subject"] = subject
     message.attach(MIMEText(body, "plain"))
 
-    with smtplib.SMTP_SSL("smtp.qq.com", 25) as server:
+    with smtplib.SMTP_SSL("smtp.qq.com", 465) as server:
         server.login(sender_email, password)
         server.send_message(message)
 
