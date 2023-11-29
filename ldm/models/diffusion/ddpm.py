@@ -24,7 +24,7 @@ from ldm.modules.distributions.distributions import normal_kl, DiagonalGaussianD
 from ldm.models.autoencoder import VQModelInterface, IdentityFirstStage, AutoencoderKL
 from ldm.modules.diffusionmodules.util import make_beta_schedule, extract_into_tensor, noise_like
 from ldm.models.diffusion.ddim import DDIMSampler
-from ldm.modules.vgg import VGG19_feature_color_torchversion
+# from ldm.modules.vgg import VGG19_feature_color_torchversion
 from torchvision.transforms import Resize
 import math
 import time
@@ -483,9 +483,9 @@ class LatentDiffusion(DDPM):
         self.clip_denoised = False
         self.bbox_tokenizer = None  
 
-        self.vgg = VGG19_feature_color_torchversion(vgg_normal_correct=True)
-        self.vgg.load_state_dict(torch.load("../models/vgg19_conv.pth", map_location="cpu"))
-        self.vgg.eval()
+        # self.vgg = VGG19_feature_color_torchversion(vgg_normal_correct=True)
+        # self.vgg.load_state_dict(torch.load("../models/vgg19_conv.pth", map_location="cpu"))
+        # self.vgg.eval()
 
         self.restarted_from_ckpt = False
         if ckpt_path is not None:
@@ -1100,19 +1100,38 @@ class LatentDiffusion(DDPM):
         loss += (self.original_elbo_weight * loss_vlb)
         loss_dict.update({f'{prefix}/loss': loss})
 
-        x_pred = self.predict_start_from_noise(x_noisy[:, :4, :, :], t=t, noise=model_output)
+        # x_pred = self.predict_start_from_noise(x_noisy[:, :4, :, :], t=t, noise=model_output)
 
-        loss_l1_weight = 1e-1
-        loss_vgg_weight = 1e-3
-        x_samples = self.differentiable_decode_first_stage(x_pred)
-        gt = self.decode_first_stage(x_start[:,:4,:,:])
-        loss_l1 = self.get_loss(x_samples, gt, mean=True)
-        loss += loss_l1 * loss_l1_weight
-        loss_dict.update({f'{prefix}/loss_l1': loss_l1 * loss_l1_weight})
+        # loss_l1_weight = 1e-1
+        # # loss_vgg_weight = 1e-3
+        # hair_mask = 1 - x_noisy[:, -1, :, :][:,None,:,:]
+        # hair_mask = Resize([512, 512])(hair_mask)
+        # hair_mask[hair_mask>=0.5] = 1
+        # hair_mask[hair_mask<0.5] = 0 
+        # # x_samples = self.differentiable_decode_first_stage(x_pred)
+        # # gt = self.decode_first_stage(x_start[:,:4,:,:])
+        # # x_samples *= hair_mask
+        # # gt *= hair_mask
+        # x_samples = self.differentiable_decode_first_stage(x_pred)
+        # x_samples *= hair_mask
+        # x_samples = (x_samples + 1.0) / 2.0
+        # x_samples[:,0,:,:] = (x_samples[:,0,:,:] - 0.48145466) / 0.26862954
+        # x_samples[:,1,:,:] = (x_samples[:,1,:,:] - 0.4578275) / 0.26130258
+        # x_samples[:,2,:,:] = (x_samples[:,2,:,:] - 0.40821073) / 0.27577711
+        # x_samples = Resize([224, 224])(x_samples)
 
-        loss_vgg = self.get_vgg_loss(x_samples, gt)
-        loss += loss_vgg * loss_vgg_weight
-        loss_dict.update({f'{prefix}/loss_vgg': loss_vgg * loss_vgg_weight})
+        # x_samples = self.get_learned_conditioning(x_samples)
+        # x_samples = self.proj_out(x_samples)
+        # loss_l1 = loss_l1_weight * F.l1_loss(cond, x_samples)
+        # loss_dict.update({f'{prefix}/loss_l1': loss_l1 * loss_l1_weight})
+        # # gt = self.decode_first_stage(x_start[:,:4,:,:])
+        # # loss_l1 = self.get_loss(x_samples, gt, mean=True)
+        # # loss += loss_l1 * loss_l1_weight
+        # # loss_dict.update({f'{prefix}/loss_l1': loss_l1 * loss_l1_weight})
+
+        # # loss_vgg = self.get_vgg_loss(x_samples, gt)
+        # # loss += loss_vgg * loss_vgg_weight
+        # # loss_dict.update({f'{prefix}/loss_vgg': loss_vgg * loss_vgg_weight})
 
         return loss, loss_dict
 

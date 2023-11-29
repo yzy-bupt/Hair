@@ -68,10 +68,10 @@ class CelebaDataset(data.Dataset):
         self.kernel = np.ones((1, 1), np.uint8)
         self.random_trans=A.Compose([
             A.Resize(height=224,width=224),
-            A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=5),
-            A.Blur(p=0.05),
-            A.ElasticTransform(p=0.05)
+            # A.HorizontalFlip(p=0.5),
+            # A.Rotate(limit=5),
+            # A.Blur(p=0.05),
+            # A.ElasticTransform(p=0.05)
             ])
         self.img_path_list=[]
         self.mask_path_list=[]
@@ -117,13 +117,14 @@ class CelebaDataset(data.Dataset):
         img_p_np = cv2.cvtColor(img_p_np, cv2.COLOR_BGR2RGB)
         img_m_np=cv2.imread(img_path_m)
         img_m_np = cv2.cvtColor(img_m_np, cv2.COLOR_BGR2RGB)
-        img_m_np = cv2.resize(img_m_np, (W,H))
+        img_m_np = cv2.resize(img_m_np, (224,224))
         mask = np.where(img_m_np > 0, 1, 0)
-        ref_image_tensor = mask * img_p_np
-        ref_image_tensor = ref_image_tensor.astype(np.uint8)
+        ref_image_tensor = img_p_np
+        # ref_image_tensor = ref_image_tensor.astype(np.uint8)
         ref_image_tensor=self.random_trans(image=ref_image_tensor)
         ref_image_tensor=Image.fromarray(ref_image_tensor["image"])
         ref_image_tensor=get_tensor_clip()(ref_image_tensor)
+        # ref_image_tensor *= mask
 
         # W,H = img_p.size
         # img_p_np=cv2.imread(img_path_p)
@@ -158,16 +159,20 @@ class CelebaDataset(data.Dataset):
 
         img_m = img_m.resize((W,H))
         mask_tensor=1-get_tensor(normalize=False, toTensor=True)(img_m)
-
+        ref_mask_tensor = get_tensor(normalize=False, toTensor=True)(img_m)
         ### Crop square image
         image_tensor_cropped=image_tensor
         mask_tensor_cropped=mask_tensor
 
         image_tensor_resize=T.Resize([self.args['image_size'],self.args['image_size']])(image_tensor_cropped)
         mask_tensor_resize=T.Resize([self.args['image_size'],self.args['image_size']])(mask_tensor_cropped)
+        ref_mask_tensor=T.Resize([224,224])(ref_mask_tensor)
         mask_tensor_resize[mask_tensor_resize < 0.5] = 0
         mask_tensor_resize[mask_tensor_resize >= 0.5] = 1
+        ref_mask_tensor[ref_mask_tensor < 0.5] = 0
+        ref_mask_tensor[ref_mask_tensor >= 0.5] = 1
         inpaint_tensor_resize=image_tensor_resize*mask_tensor_resize
+        ref_image_tensor *= ref_mask_tensor
 
         # print(image_tensor_resize.shape, inpaint_tensor_resize.shape, mask_tensor_resize[:1,:,:].shape, ref_image_tensor.shape)
         return {"GT":image_tensor_resize,"inpaint_image":inpaint_tensor_resize,"inpaint_mask":mask_tensor_resize[:1,:,:],"ref_imgs":ref_image_tensor}

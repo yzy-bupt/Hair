@@ -73,7 +73,8 @@ def load_model_from_config(config, ckpt, verbose=False):
         print("unexpected keys:")
         print(u)
 
-    model.cuda()
+    if torch.cuda.is_available():
+        model.cuda()
     model.eval()
     return model
 
@@ -232,7 +233,7 @@ parser.add_argument(
 parser.add_argument(
     "--ckpt",
     type=str,
-    default="logs/2023-11-24T04-14-56_v1/checkpoints/last.ckpt",
+    default="logs/2023-11-24T15-44-34_v1/checkpoints/last.ckpt",
     help="path to checkpoint of model",
 )
 parser.add_argument(
@@ -359,11 +360,11 @@ def gen(img_input, is_input, image_path, reference_path, mask_path, ref_mask_pat
                 mask = cv2.cvtColor(np.array(mask), cv2.COLOR_GRAY2BGR)
                 ref_mask = cv2.cvtColor(np.array(ref_mask), cv2.COLOR_GRAY2BGR)
                 # 定义开闭操作的内核大小
-                kernel_size = (25, 25)
+                kernel_size = (15, 15)
 
                 # 开操作
-                dilated_mask = cv2.dilate(mask, kernel_size, iterations=20)
-                dilated_ref_mask = cv2.dilate(ref_mask, kernel_size, iterations=20)
+                dilated_mask = cv2.dilate(mask, kernel_size, iterations=10)
+                dilated_ref_mask = cv2.dilate(ref_mask, kernel_size, iterations=10)
                 # 将结果转换回PIL图像
                 mask = Image.fromarray(dilated_mask)
                 ref_mask = Image.fromarray(dilated_ref_mask)
